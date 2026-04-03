@@ -25,11 +25,9 @@
         <div class="nav-close">
             <i class="fa fa-times-circle"></i>
         </div>
-        <a th:href="@{/index}">
-            <li class="logo hidden-xs">
-                <span class="logo-lg">RuoYi</span>
-            </li>
-         </a>
+        <div class="logo hidden-xs">
+            <span class="logo-lg" th:text="${siteName}">XX管理系统</span>
+        </div>
         <div class="sidebar-collapse tab-content" id="side-menu">
 			<div class="user-panel">
 				<a class="menuItem noactive" title="个人中心" th:href="@{/system/user/profile}">
@@ -320,7 +318,7 @@
         </div>
         
         <div th:if="${footer}" class="footer">
-            <div class="pull-right">© [[${copyrightYear}]] RuoYi Copyright </div>
+            <div class="pull-right">© [[${copyrightYear}]] [[${siteName}]]</div>
         </div>
     </div>
     <!--右侧部分结束-->

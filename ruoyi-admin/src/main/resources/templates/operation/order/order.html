@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:shiro="http://www.polix.at/thymeleaf/shiro">
+<head>
+	<th:block th:include="include :: header('订单查询')" />
+</head>
+<body class="gray-bg">
+	<div class="container-div">
+		<div class="row">
+			<div class="col-sm-12 search-collapse">
+				<form id="order-form">
+					<div class="select-list">
+						<ul>
+							<li>
+								订单号：<input type="text" name="orderNo"/>
+							</li>
+							<li>
+								购买人：<input type="text" name="buyerName"/>
+							</li>
+							<li>
+								商品名称：<input type="text" name="productName"/>
+							</li>
+							<li>
+								订单状态：<select name="orderStatus">
+									<option value="">所有</option>
+									<option value="0">待支付</option>
+									<option value="1">已支付</option>
+									<option value="2">已取消</option>
+								</select>
+							</li>
+							<li>
+								<a class="btn btn-primary btn-rounded btn-sm" onclick="$.table.search()"><i class="fa fa-search"></i>&nbsp;搜索</a>
+								<a class="btn btn-warning btn-rounded btn-sm" onclick="$.form.reset()"><i class="fa fa-refresh"></i>&nbsp;重置</a>
+							</li>
+						</ul>
+					</div>
+				</form>
+			</div>
+
+			<div class="btn-group-sm" id="toolbar" role="group">
+				<a class="btn btn-success" onclick="$.operate.add()" shiro:hasPermission="operation:order:add">
+					<i class="fa fa-plus"></i> 录入订单
+				</a>
+				<a class="btn btn-info" onclick="$.table.importExcel()" shiro:hasPermission="operation:order:import">
+					<i class="fa fa-upload"></i> 导入
+				</a>
+				<a class="btn btn-warning" onclick="$.table.exportExcel()" shiro:hasPermission="operation:order:export">
+					<i class="fa fa-download"></i> 导出
+				</a>
+			</div>
+
+			<div class="col-sm-12 select-table table-striped">
+				<table id="bootstrap-table"></table>
+			</div>
+		</div>
+	</div>
+	<th:block th:include="include :: footer" />
+	<script th:inline="javascript">
+		var prefix = ctx + "operation/order";
+		var isAdmin = [[${isAdmin}]];
+
+		function orderStatusLabel(v) {
+			if (v === '0' || v === 0) return '待支付';
+			if (v === '1' || v === 1) return '已支付';
+			if (v === '2' || v === 2) return '已取消';
+			return v;
+		}
+
+		$(function() {
+			var options = {
+				url: prefix + "/list",
+				createUrl: prefix + "/add",
+				updateUrl: prefix + "/edit/{id}",
+				editUrl: prefix + "/edit/{id}",
+				exportUrl: prefix + "/export",
+				importUrl: prefix + "/importData",
+				importTemplateUrl: prefix + "/importTemplate",
+				sortName: "orderId",
+				modalName: "订单",
+				columns: [{
+					field: 'orderId',
+					title: '订单ID'
+				},
+				{
+					field: 'orderNo',
+					title: '订单号',
+					sortable: true
+				},
+				{
+					field: 'productName',
+					title: '商品名称'
+				},
+				{
+					field: 'buyerName',
+					title: '购买人'
+				},
+				{
+					field: 'amount',
+					title: '金额',
+					sortable: true
+				},
+				{
+					field: 'orderStatus',
+					title: '状态',
+					align: 'center',
+					formatter: function(value, row, index) {
+						return orderStatusLabel(value);
+					}
+				},
+				{
+					field: 'createTime',
+					title: '下单时间',
+					sortable: true
+				},
+				{
+					field: 'remark',
+					title: '备注'
+				},
+				{
+					title: '操作',
+					align: 'center',
+					formatter: function(value, row, index) {
+						var actions = [];
+						// 仅超级管理员显示编辑按钮
+						if (isAdmin) {
+							actions.push('<a class="btn btn-success btn-xs" href="javascript:void(0)" onclick="$.operate.edit(\'' + row.orderId + '\')"><i class="fa fa-edit"></i>编辑</a> ');
+						}
+						return actions.join('');
+					}
+				}]
+			};
+			$.table.init(options);
+		});
+	</script>
+</body>
+<!-- 导入区域 -->
+<script id="importTpl" type="text/template">
+<form enctype="multipart/form-data" class="mt20 mb10">
+	<div class="col-xs-offset-1">
+		<input type="file" id="file" name="file"/>
+		<div class="mt10 pt5">
+			<input type="checkbox" id="updateSupport" name="updateSupport" title="如果订单号已经存在，更新这条数据。"> 是否更新已经存在的订单数据
+			 &nbsp;	<a onclick="$.table.importTemplate()" class="btn btn-default btn-xs"><i class="fa fa-file-excel-o"></i> 下载模板</a>
+		</div>
+		<font color="red" class="pull-left mt10">
+			提示：仅允许导入"xls"或"xlsx"格式文件！
+		</font>
+	</div>
+</form>
+</script>
+</html>

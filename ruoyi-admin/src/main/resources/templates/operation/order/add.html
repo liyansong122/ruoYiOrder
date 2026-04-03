@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh" xmlns:th="http://www.thymeleaf.org" >
+<head>
+	<th:block th:include="include :: header('录入订单')" />
+	<th:block th:include="include :: datetimepicker-css" />
+</head>
+<body class="white-bg">
+	<div class="wrapper wrapper-content animated fadeInRight ibox-content">
+		<form class="form-horizontal m" id="form-order-add">
+			<div class="form-group">
+				<label class="col-sm-3 control-label is-required">商品：</label>
+				<div class="col-sm-8">
+					<select name="productId" id="productId" class="form-control" required>
+						<option value="">请选择商品</option>
+						<option th:each="p : ${products}" th:value="${p.productId}" th:text="${p.productName + '（' + p.productCode + '）'}"></option>
+					</select>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label is-required">购买人：</label>
+				<div class="col-sm-8">
+					<input class="form-control" type="text" name="buyerName" id="buyerName" required>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">电话：</label>
+				<div class="col-sm-8">
+					<input class="form-control" type="text" name="phone" id="phone">
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">地区：</label>
+				<div class="col-sm-8">
+					<input class="form-control" type="text" name="region" id="region" placeholder="省/市/区">
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">厂家：</label>
+				<div class="col-sm-8">
+					<input class="form-control" type="text" name="factory" id="factory">
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label is-required">单价：</label>
+				<div class="col-sm-8">
+					<input class="form-control" type="number" name="unitPrice" id="unitPrice" step="0.01" min="0" required onchange="calculateAmount()">
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label is-required">数量：</label>
+				<div class="col-sm-8">
+					<input class="form-control" type="number" name="quantity" id="quantity" min="1" required onchange="calculateAmount()">
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">总金额：</label>
+				<div class="col-sm-8">
+					<input class="form-control" type="number" name="amount" id="amount" step="0.01" readonly placeholder="自动计算">
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">发货物流：</label>
+				<div class="col-sm-8">
+					<input class="form-control" type="text" name="logistics" id="logistics">
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">下单日期：</label>
+				<div class="col-sm-8">
+					<div class="input-group date">
+						<input class="form-control" type="text" name="orderDate" id="orderDate" placeholder="留空默认为今天">
+						<span class="input-group-addon"><i class="fa fa-calendar"></i></span>
+					</div>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">订单状态：</label>
+				<div class="col-sm-8">
+					<select name="orderStatus" id="orderStatus" class="form-control">
+						<option value="0" selected>待支付</option>
+						<option value="1">已支付</option>
+						<option value="2">已取消</option>
+					</select>
+				</div>
+			</div>
+			<div class="form-group">
+				<label class="col-sm-3 control-label">备注：</label>
+				<div class="col-sm-8">
+					<textarea id="remark" name="remark" class="form-control"></textarea>
+				</div>
+			</div>
+		</form>
+	</div>
+	<th:block th:include="include :: footer" />
+	<th:block th:include="include :: datetimepicker-js" />
+	<script type="text/javascript">
+		var prefix = ctx + "operation/order";
+
+		// 计算总金额
+		function calculateAmount() {
+			var unitPrice = parseFloat($("#unitPrice").val()) || 0;
+			var quantity = parseInt($("#quantity").val()) || 0;
+			var amount = (unitPrice * quantity).toFixed(2);
+			$("#amount").val(amount);
+		}
+
+		// 初始化日期选择器
+		$(function() {
+			$('.input-group.date').datepicker({
+				format: 'yyyy-mm-dd',
+				autoclose: true,
+				todayHighlight: true
+			});
+		});
+
+		$("#form-order-add").validate({
+			onkeyup: false,
+			rules: {
+				orderNo: {
+					remote: {
+						url: ctx + "operation/order/checkOrderNoUnique",
+						type: "post",
+						dataType: "json",
+						data: {
+							"orderNo": function() {
+								return $.common.trim($("#orderNo").val());
+							}
+						}
+					}
+				}
+			},
+			focusCleanup: true
+		});
+
+		function submitHandler() {
+			if ($.validate.form()) {
+				$.operate.save(prefix + "/add", $('#form-order-add').serialize());
+			}
+		}
+	</script>
+</body>
+</html>

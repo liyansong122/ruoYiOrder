@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.OpsOrderMapper">
+
+	<resultMap type="OpsOrder" id="OpsOrderResult">
+		<id     property="orderId"       column="order_id"       />
+		<result property="orderNo"       column="order_no"       />
+		<result property="productId"     column="product_id"     />
+		<result property="productName"   column="product_name"   />
+		<result property="buyerName"     column="buyer_name"     />
+		<result property="amount"        column="amount"         />
+		<result property="unitPrice"     column="unit_price"     />
+		<result property="quantity"      column="quantity"       />
+		<result property="region"        column="region"         />
+		<result property="phone"         column="phone"          />
+		<result property="logistics"     column="logistics"      />
+		<result property="factory"       column="factory"        />
+		<result property="orderDate"     column="order_date"     />
+		<result property="orderStatus"   column="order_status"   />
+		<result property="createTime"    column="create_time"    />
+		<result property="remark"        column="remark"         />
+	</resultMap>
+
+	<select id="selectOpsOrderList" parameterType="OpsOrder" resultMap="OpsOrderResult">
+		select o.order_id, o.order_no, o.product_id, p.product_name, o.buyer_name, o.amount, o.order_status, o.create_time, o.remark
+		from ops_order o
+		left join ops_product p on o.product_id = p.product_id
+		<where>
+			<if test="orderNo != null and orderNo != ''">
+				AND o.order_no like concat('%', #{orderNo}, '%')
+			</if>
+			<if test="buyerName != null and buyerName != ''">
+				AND o.buyer_name like concat('%', #{buyerName}, '%')
+			</if>
+			<if test="orderStatus != null and orderStatus != ''">
+				AND o.order_status = #{orderStatus}
+			</if>
+			<if test="productName != null and productName != ''">
+				AND p.product_name like concat('%', #{productName}, '%')
+			</if>
+		</where>
+		order by o.create_time desc
+	</select>
+
+	<select id="checkOrderNoUnique" parameterType="String" resultMap="OpsOrderResult">
+		select order_id, order_no, product_id, buyer_name, amount, order_status, create_time, remark
+		from ops_order
+		where order_no = #{orderNo} limit 1
+	</select>
+
+	<select id="selectMaxOrderNoByPrefix" parameterType="String" resultType="String">
+		select order_no from ops_order
+		where order_no like concat(#{prefix}, '%')
+		order by order_no desc limit 1
+	</select>
+
+	<insert id="insertOpsOrder" parameterType="OpsOrder" useGeneratedKeys="true" keyProperty="orderId">
+		insert into ops_order(
+			<if test="orderNo != null and orderNo != ''">order_no,</if>
+			<if test="productId != null">product_id,</if>
+			<if test="buyerName != null and buyerName != ''">buyer_name,</if>
+			<if test="amount != null">amount,</if>
+			<if test="unitPrice != null">unit_price,</if>
+			<if test="quantity != null">quantity,</if>
+			<if test="region != null and region != ''">region,</if>
+			<if test="phone != null and phone != ''">phone,</if>
+			<if test="logistics != null and logistics != ''">logistics,</if>
+			<if test="factory != null and factory != ''">factory,</if>
+			<if test="orderDate != null">order_date,</if>
+			<if test="orderStatus != null and orderStatus != ''">order_status,</if>
+			<if test="remark != null and remark != ''">remark,</if>
+			create_time
+		)values(
+			<if test="orderNo != null and orderNo != ''">#{orderNo},</if>
+			<if test="productId != null">#{productId},</if>
+			<if test="buyerName != null and buyerName != ''">#{buyerName},</if>
+			<if test="amount != null">#{amount},</if>
+			<if test="unitPrice != null">#{unitPrice},</if>
+			<if test="quantity != null">#{quantity},</if>
+			<if test="region != null and region != ''">#{region},</if>
+			<if test="phone != null and phone != ''">#{phone},</if>
+			<if test="logistics != null and logistics != ''">#{logistics},</if>
+			<if test="factory != null and factory != ''">#{factory},</if>
+			<if test="orderDate != null">#{orderDate},</if>
+			<if test="orderStatus != null and orderStatus != ''">#{orderStatus},</if>
+			<if test="remark != null and remark != ''">#{remark},</if>
+			<choose>
+				<when test="createTime != null">#{createTime}</when>
+				<otherwise>sysdate()</otherwise>
+			</choose>
+		)
+	</insert>
+
+	<update id="updateOpsOrder" parameterType="OpsOrder">
+		update ops_order
+		set product_id = #{productId},
+			buyer_name = #{buyerName},
+			amount = #{amount},
+			unit_price = #{unitPrice},
+			quantity = #{quantity},
+			region = #{region},
+			phone = #{phone},
+			logistics = #{logistics},
+			factory = #{factory},
+			order_date = #{orderDate},
+			order_status = #{orderStatus},
+			remark = #{remark}
+		<if test="createTime != null">, create_time = #{createTime}</if>
+		where order_id = #{orderId}
+	</update>
+
+	<select id="selectOpsOrderById" parameterType="Long" resultMap="OpsOrderResult">
+		select o.order_id, o.order_no, o.product_id, p.product_name, o.buyer_name, o.amount, 
+		       o.unit_price, o.quantity, o.region, o.phone, o.logistics, o.factory, 
+		       o.order_date, o.order_status, o.create_time, o.remark
+		from ops_order o
+		left join ops_product p on o.product_id = p.product_id
+		where o.order_id = #{orderId}
+	</select>
+</mapper>
