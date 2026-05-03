@@ -3,6 +3,7 @@ package com.ruoyi.system.domain;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Date;
+import java.util.List;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -10,7 +11,7 @@ import com.ruoyi.common.annotation.Excel;
 import com.ruoyi.common.annotation.Excel.ColumnType;
 
 /**
- * 运营订单表 ops_order（列表展示含商品名称）
+ * 运营订单表 ops_order
  */
 public class OpsOrder implements Serializable
 {
@@ -21,9 +22,11 @@ public class OpsOrder implements Serializable
     @Excel(name = "订单号")
     private String orderNo;
 
-    private Long productId;
+    /** 订单明细列表 */
+    private List<OpsOrderItem> items;
 
-    @Excel(name = "商品名称")
+    /** 商品名称汇总（用于列表展示，非数据库字段） */
+    @Excel(name = "商品")
     private String productName;
 
     @Excel(name = "购买人")
@@ -32,11 +35,12 @@ public class OpsOrder implements Serializable
     @Excel(name = "订单金额", cellType = ColumnType.NUMERIC)
     private BigDecimal amount;
 
-    @Excel(name = "单价", cellType = ColumnType.NUMERIC)
-    private BigDecimal unitPrice;
+    @Excel(name = "已付金额", cellType = ColumnType.NUMERIC)
+    private BigDecimal paidAmount;
 
-    @Excel(name = "数量")
-    private Integer quantity;
+    /** 待付金额（非持久化，导出用） */
+    @Excel(name = "待付金额", cellType = ColumnType.NUMERIC)
+    private BigDecimal unpaidAmount;
 
     @Excel(name = "地区")
     private String region;
@@ -53,6 +57,12 @@ public class OpsOrder implements Serializable
     @JsonFormat(pattern = "yyyy-MM-dd", timezone = "GMT+8")
     @Excel(name = "下单日期", width = 20, dateFormat = "yyyy-MM-dd")
     private Date orderDate;
+
+    /** 下单日期查询-开始 */
+    private String orderDateBegin;
+
+    /** 下单日期查询-结束 */
+    private String orderDateEnd;
 
     @Excel(name = "订单状态", readConverterExp = "0=待支付,1=已支付,2=已取消")
     private String orderStatus;
@@ -83,14 +93,14 @@ public class OpsOrder implements Serializable
         this.orderNo = orderNo;
     }
 
-    public Long getProductId()
+    public List<OpsOrderItem> getItems()
     {
-        return productId;
+        return items;
     }
 
-    public void setProductId(Long productId)
+    public void setItems(List<OpsOrderItem> items)
     {
-        this.productId = productId;
+        this.items = items;
     }
 
     public String getProductName()
@@ -123,54 +133,24 @@ public class OpsOrder implements Serializable
         this.amount = amount;
     }
 
-    public String getOrderStatus()
+    public BigDecimal getPaidAmount()
     {
-        return orderStatus;
+        return paidAmount;
     }
 
-    public void setOrderStatus(String orderStatus)
+    public void setPaidAmount(BigDecimal paidAmount)
     {
-        this.orderStatus = orderStatus;
+        this.paidAmount = paidAmount;
     }
 
-    public Date getCreateTime()
+    public BigDecimal getUnpaidAmount()
     {
-        return createTime;
+        return unpaidAmount;
     }
 
-    public void setCreateTime(Date createTime)
+    public void setUnpaidAmount(BigDecimal unpaidAmount)
     {
-        this.createTime = createTime;
-    }
-
-    public String getRemark()
-    {
-        return remark;
-    }
-
-    public void setRemark(String remark)
-    {
-        this.remark = remark;
-    }
-
-    public BigDecimal getUnitPrice()
-    {
-        return unitPrice;
-    }
-
-    public void setUnitPrice(BigDecimal unitPrice)
-    {
-        this.unitPrice = unitPrice;
-    }
-
-    public Integer getQuantity()
-    {
-        return quantity;
-    }
-
-    public void setQuantity(Integer quantity)
-    {
-        this.quantity = quantity;
+        this.unpaidAmount = unpaidAmount;
     }
 
     public String getRegion()
@@ -223,17 +203,65 @@ public class OpsOrder implements Serializable
         this.orderDate = orderDate;
     }
 
+    public String getOrderDateBegin()
+    {
+        return orderDateBegin;
+    }
+
+    public void setOrderDateBegin(String orderDateBegin)
+    {
+        this.orderDateBegin = orderDateBegin;
+    }
+
+    public String getOrderDateEnd()
+    {
+        return orderDateEnd;
+    }
+
+    public void setOrderDateEnd(String orderDateEnd)
+    {
+        this.orderDateEnd = orderDateEnd;
+    }
+
+    public String getOrderStatus()
+    {
+        return orderStatus;
+    }
+
+    public void setOrderStatus(String orderStatus)
+    {
+        this.orderStatus = orderStatus;
+    }
+
+    public Date getCreateTime()
+    {
+        return createTime;
+    }
+
+    public void setCreateTime(Date createTime)
+    {
+        this.createTime = createTime;
+    }
+
+    public String getRemark()
+    {
+        return remark;
+    }
+
+    public void setRemark(String remark)
+    {
+        this.remark = remark;
+    }
+
     @Override
     public String toString()
     {
         return new ToStringBuilder(this, ToStringStyle.MULTI_LINE_STYLE)
             .append("orderId", getOrderId())
             .append("orderNo", getOrderNo())
-            .append("productId", getProductId())
             .append("buyerName", getBuyerName())
             .append("amount", getAmount())
-            .append("unitPrice", getUnitPrice())
-            .append("quantity", getQuantity())
+            .append("paidAmount", getPaidAmount())
             .append("region", getRegion())
             .append("phone", getPhone())
             .append("logistics", getLogistics())

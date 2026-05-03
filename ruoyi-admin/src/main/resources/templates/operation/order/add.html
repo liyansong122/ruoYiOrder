@@ -3,19 +3,126 @@
 <head>
 	<th:block th:include="include :: header('录入订单')" />
 	<th:block th:include="include :: datetimepicker-css" />
+	<th:block th:include="include :: select2-css" />
+	<style>
+		.items-wrapper {
+			overflow-x: auto;
+			padding-bottom: 5px;
+		}
+		.items-container-inner {
+			min-width: 700px;
+		}
+		.item-header { 
+			margin-bottom: 5px; 
+			font-size: 12px; 
+			color: #666; 
+			font-weight: bold;
+			display: flex;
+			padding: 0 5px;
+		}
+		.item-header span {
+			text-align: center;
+			padding: 0 3px;
+		}
+		.item-header .col-product { 
+			width: 180px;
+			min-width: 180px;
+			text-align: center;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.item-header .col-small { 
+			width: 65px;
+			min-width: 65px;
+			text-align: center;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.item-header .col-action { 
+			width: 45px;
+			min-width: 45px;
+			text-align: center;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.item-row { 
+			margin-bottom: 10px; 
+			padding: 8px 10px; 
+			background: #f9f9f9; 
+			border-radius: 4px; 
+			border: 1px solid #e5e5e5;
+			display: flex;
+			align-items: center;
+		}
+		.item-row > div {
+			padding: 0 3px;
+		}
+		.item-row .col-product { 
+			width: 180px;
+			min-width: 180px;
+			padding: 0;
+		}
+		.item-row .col-small { 
+			width: 65px;
+			min-width: 65px;
+			padding: 0 2px;
+		}
+		.item-row .col-small.col-action { 
+			width: 45px;
+			min-width: 45px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+		.item-row .col-small.col-action .btn {
+			padding: 4px 8px;
+		}
+		.item-row .form-control {
+			width: 100%;
+			padding: 6px 8px;
+			height: 34px;
+		}
+		/* Select2 对齐优化 */
+		.item-row .col-product .select2 {
+			width: 100% !important;
+		}
+		.item-row .col-product .select2-container {
+			margin: 0 !important;
+			padding: 0 !important;
+		}
+		.select2-container .select2-selection--single {
+			height: 34px !important;
+			border-radius: 3px !important;
+		}
+		.select2-container--bootstrap .select2-selection--single {
+			line-height: 30px !important;
+			padding: 2px 20px 2px 10px !important;
+		}
+		.select2-container--bootstrap .select2-selection--single .select2-selection__rendered {
+			line-height: 30px !important;
+			padding-left: 0 !important;
+		}
+		.select2-container--bootstrap .select2-selection--single .select2-selection__arrow {
+			height: 30px !important;
+			line-height: 30px !important;
+		}
+		.select2-container--bootstrap .select2-selection--single .select2-selection__clear {
+			line-height: 30px !important;
+			margin-right: 6px !important;
+			font-size: 18px !important;
+			color: #999 !important;
+		}
+		.select2-container--bootstrap .select2-selection--single .select2-selection__clear:hover {
+			color: #333 !important;
+		}
+	</style>
 </head>
 <body class="white-bg">
 	<div class="wrapper wrapper-content animated fadeInRight ibox-content">
 		<form class="form-horizontal m" id="form-order-add">
-			<div class="form-group">
-				<label class="col-sm-3 control-label is-required">商品：</label>
-				<div class="col-sm-8">
-					<select name="productId" id="productId" class="form-control" required>
-						<option value="">请选择商品</option>
-						<option th:each="p : ${products}" th:value="${p.productId}" th:text="${p.productName + '（' + p.productCode + '）'}"></option>
-					</select>
-				</div>
-			</div>
 			<div class="form-group">
 				<label class="col-sm-3 control-label is-required">购买人：</label>
 				<div class="col-sm-8">
@@ -40,22 +147,45 @@
 					<input class="form-control" type="text" name="factory" id="factory">
 				</div>
 			</div>
+
+			<!-- 商品明细区域 -->
 			<div class="form-group">
-				<label class="col-sm-3 control-label is-required">单价：</label>
+				<label class="col-sm-3 control-label is-required">商品明细：</label>
 				<div class="col-sm-8">
-					<input class="form-control" type="number" name="unitPrice" id="unitPrice" step="0.01" min="0" required onchange="calculateAmount()">
+					<div class="items-wrapper">
+						<div class="items-container-inner">
+							<div class="item-header">
+								<span class="col-product">商品</span>
+								<span class="col-small">单价</span>
+								<span class="col-small">数量</span>
+								<span class="col-small">小计</span>
+								<span class="col-small col-action">操作</span>
+							</div>
+							<div id="items-container"></div>
+						</div>
+					</div>
+					<button type="button" class="btn btn-primary btn-sm" onclick="addItem()">
+						<i class="fa fa-plus"></i> 添加商品
+					</button>
 				</div>
 			</div>
-			<div class="form-group">
-				<label class="col-sm-3 control-label is-required">数量：</label>
-				<div class="col-sm-8">
-					<input class="form-control" type="number" name="quantity" id="quantity" min="1" required onchange="calculateAmount()">
-				</div>
-			</div>
+
 			<div class="form-group">
 				<label class="col-sm-3 control-label">总金额：</label>
 				<div class="col-sm-8">
-					<input class="form-control" type="number" name="amount" id="amount" step="0.01" readonly placeholder="自动计算">
+					<div class="row">
+						<div class="col-sm-4">
+							<input class="form-control" type="text" id="totalAmount" readonly placeholder="总金额" style="background:#eee;">
+						</div>
+						<div class="col-sm-4">
+							<input class="form-control" type="number" id="totalPaid" placeholder="已付金额" step="0.01" min="0" oninput="calculateUnpaid()" style="background:#d4edda;color:#155724;">
+						</div>
+						<div class="col-sm-4">
+							<input class="form-control" type="text" id="totalUnpaid" readonly placeholder="待付金额" style="background:#f8d7da;color:#721c24;">
+						</div>
+					</div>
+					<input type="hidden" name="amount" id="amount">
+					<input type="hidden" name="paidAmount" id="paidAmountHidden">
 				</div>
 			</div>
 			<div class="form-group">
@@ -93,49 +223,222 @@
 	</div>
 	<th:block th:include="include :: footer" />
 	<th:block th:include="include :: datetimepicker-js" />
+	<th:block th:include="include :: select2-js" />
 	<script type="text/javascript">
 		var prefix = ctx + "operation/order";
-
-		// 计算总金额
-		function calculateAmount() {
-			var unitPrice = parseFloat($("#unitPrice").val()) || 0;
-			var quantity = parseInt($("#quantity").val()) || 0;
-			var amount = (unitPrice * quantity).toFixed(2);
-			$("#amount").val(amount);
-		}
+		var itemIndex = 0;
 
 		// 初始化日期选择器
 		$(function() {
-			$('.input-group.date').datepicker({
+			$('.input-group.date').datetimepicker({
 				format: 'yyyy-mm-dd',
 				autoclose: true,
-				todayHighlight: true
+				todayHighlight: true,
+				minView: 2
 			});
+			// 默认添加一行
+			addItem();
 		});
 
-		$("#form-order-add").validate({
-			onkeyup: false,
-			rules: {
-				orderNo: {
-					remote: {
-						url: ctx + "operation/order/checkOrderNoUnique",
-						type: "post",
-						dataType: "json",
-						data: {
-							"orderNo": function() {
-								return $.common.trim($("#orderNo").val());
-							}
-						}
-					}
+		// 添加一行商品明细
+		function addItem() {
+			var idx = itemIndex++;
+			var html = '<div class="item-row" id="item-row-' + idx + '">' +
+				'<div class="col-product">' +
+					'<select class="form-control item-product" id="item-product-' + idx + '" data-idx="' + idx + '" required>' +
+						'<option value="">请选择商品（可搜索）</option>' +
+					'</select>' +
+				'</div>' +
+				'<div class="col-small">' +
+					'<input class="form-control" type="number" placeholder="单价" step="0.01" min="0" id="item-price-' + idx + '" onchange="calculateTotal()" required>' +
+				'</div>' +
+				'<div class="col-small">' +
+					'<input class="form-control" type="number" placeholder="数量" min="1" value="1" id="item-qty-' + idx + '" onchange="calculateTotal()" required>' +
+				'</div>' +
+				'<div class="col-small">' +
+					'<input class="form-control" type="text" placeholder="小计" id="item-subtotal-' + idx + '" readonly style="background:#eee;font-size:12px;">' +
+				'</div>' +
+				'<div class="col-small col-action">' +
+					'<button type="button" class="btn btn-danger btn-xs" onclick="removeItem(' + idx + ')" title="删除"><i class="fa fa-remove"></i></button>' +
+				'</div>' +
+			'</div>';
+			$('#items-container').append(html);
+
+			// 初始化Select2
+			$('#item-product-' + idx).select2({
+				theme: 'bootstrap',
+				placeholder: '请输入商品名称搜索',
+				allowClear: true,
+				ajax: {
+					url: prefix + '/searchProduct',
+					dataType: 'json',
+					type: 'post',
+					delay: 300,
+					data: function(params) {
+						return { productName: params.term || '' };
+					},
+					processResults: function(data) {
+						var list = data.data || [];
+						return {
+							results: $.map(list, function(p) {
+								return { 
+									id: p.productId, 
+									text: p.productName + '（' + p.productCode + '）',
+									productName: p.productName,
+									productCode: p.productCode,
+									stock: p.stock || 0
+								};
+							})
+						};
+					},
+					cache: true
+				},
+				minimumInputLength: 0,
+				language: {
+					inputTooShort: function() { return '请输入商品名称搜索'; },
+					searching: function() { return '搜索中...'; },
+					noResults: function() { return '未找到商品'; }
+				},
+				templateResult: function(data) {
+					if (!data.id) return data.text;
+					return $('<div>' +
+						'<div style="font-weight:bold;">' + data.productName + '（' + data.productCode + '）</div>' +
+						'<div style="font-size:12px;color:#666;margin-top:2px;">库存：' + data.stock + '</div>' +
+					'</div>');
+				},
+				templateSelection: function(data) {
+					return data.text || data.id;
 				}
-			},
-			focusCleanup: true
-		});
+			});
+		}
 
-		function submitHandler() {
-			if ($.validate.form()) {
-				$.operate.save(prefix + "/add", $('#form-order-add').serialize());
+		// 删除一行明细
+		function removeItem(idx) {
+			$('#item-row-' + idx).remove();
+			calculateTotal();
+		}
+
+		// 计算总金额
+		function calculateTotal() {
+			var total = 0;
+			$('#items-container .item-row').each(function() {
+				var row = $(this);
+				var idx = row.attr('id').replace('item-row-', '');
+				var price = parseFloat($('#item-price-' + idx).val()) || 0;
+				var qty = parseInt($('#item-qty-' + idx).val()) || 0;
+				var subtotal = price * qty;
+				$('#item-subtotal-' + idx).val(subtotal.toFixed(2));
+				total += subtotal;
+			});
+			$('#totalAmount').val(total.toFixed(2));
+			$('#amount').val(total.toFixed(2));
+			calculateUnpaid();
+		}
+		
+		// 计算待付金额
+		function calculateUnpaid() {
+			var total = parseFloat($('#totalAmount').val()) || 0;
+			var paid = parseFloat($('#totalPaid').val()) || 0;
+			var unpaid = total - paid;
+			$('#totalUnpaid').val(unpaid.toFixed(2));
+			$('#paidAmountHidden').val(paid.toFixed(2));
+		}
+
+		// 收集明细数据并提交
+		function submitHandler(index, layero) {
+			if (!$.validate.form()) return;
+
+			var items = [];
+			var valid = true;
+			$('#items-container .item-row').each(function() {
+				var row = $(this);
+				var idx = row.attr('id').replace('item-row-', '');
+				var productId = $('#item-product-' + idx).val();
+				var productName = $('#item-product-' + idx + ' option:selected').text();
+				var unitPrice = parseFloat($('#item-price-' + idx).val());
+				var quantity = parseInt($('#item-qty-' + idx).val());
+
+				if (!productId) {
+					$.modal.alertWarning('请选择商品');
+					valid = false;
+					return false;
+				}
+				if (!unitPrice || unitPrice <= 0) {
+					$.modal.alertWarning('请输入有效的单价');
+					valid = false;
+					return false;
+				}
+				if (!quantity || quantity <= 0) {
+					$.modal.alertWarning('请输入有效的数量');
+					valid = false;
+					return false;
+				}
+				// 库存校验
+				var selectedData = $('#item-product-' + idx).select2('data')[0];
+				if (selectedData && selectedData.stock !== undefined && quantity > selectedData.stock) {
+					$.modal.alertWarning('商品库存不足，当前库存：' + selectedData.stock);
+					valid = false;
+					return false;
+				}
+
+				items.push({
+					productId: productId,
+					productName: productName,
+					unitPrice: unitPrice,
+					quantity: quantity,
+					amount: (unitPrice * quantity).toFixed(2)
+				});
+			});
+
+			if (!valid) return;
+			if (items.length === 0) {
+				$.modal.alertWarning('请至少添加一个商品');
+				return;
 			}
+
+			var orderData = {
+				buyerName: $('#buyerName').val(),
+				phone: $('#phone').val(),
+				region: $('#region').val(),
+				factory: $('#factory').val(),
+				amount: parseFloat($('#amount').val()) || 0,
+				paidAmount: parseFloat($('#paidAmountHidden').val()) || 0,
+				logistics: $('#logistics').val(),
+				orderDate: $('#orderDate').val() || null,
+				orderStatus: $('#orderStatus').val(),
+				remark: $('#remark').val(),
+				items: items
+			};
+
+			$.ajax({
+				url: prefix + "/add",
+				type: "post",
+				contentType: "application/json",
+				data: JSON.stringify(orderData),
+				success: function(result) {
+					if (result.code === 0) {
+						// 使用 activeWindow 获取正确的父页面
+						var parentWindow = activeWindow();
+						if (parentWindow && parentWindow.$ && parentWindow.$.table) {
+							parentWindow.$.modal.msgSuccess(result.msg);
+							parentWindow.$.table.refresh();
+						} else {
+							$.modal.msgSuccess(result.msg);
+						}
+						// 关闭弹窗（通过parent.layer关闭）
+						if (index !== undefined) {
+							parent.layer.close(index);
+						} else {
+							$.modal.close();
+						}
+					} else {
+						$.modal.msgError(result.msg);
+					}
+				},
+				error: function() {
+					$.modal.msgError('系统异常，请联系管理员');
+				}
+			});
 		}
 	</script>
 </body>

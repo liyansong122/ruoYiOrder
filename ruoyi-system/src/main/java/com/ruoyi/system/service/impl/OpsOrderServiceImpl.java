@@ -8,12 +8,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import com.ruoyi.common.constant.UserConstants;
 import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.system.domain.OpsOrder;
+import com.ruoyi.system.domain.OpsOrderItem;
 import com.ruoyi.system.domain.OpsProduct;
 import com.ruoyi.system.mapper.OpsOrderMapper;
+import com.ruoyi.system.mapper.OpsOrderItemMapper;
 import com.ruoyi.system.mapper.OpsProductMapper;
 import com.ruoyi.system.service.IOpsOrderService;
 
@@ -24,6 +27,9 @@ public class OpsOrderServiceImpl implements IOpsOrderService
 
     @Autowired
     private OpsOrderMapper opsOrderMapper;
+
+    @Autowired
+    private OpsOrderItemMapper opsOrderItemMapper;
 
     @Autowired
     private OpsProductMapper opsProductMapper;
@@ -41,14 +47,12 @@ public class OpsOrderServiceImpl implements IOpsOrderService
     {
         String dateStr = new SimpleDateFormat("yyyyMMdd").format(new Date());
         String prefix = "ORD" + dateStr;
-        // 查询当天最大的订单号
         String maxOrderNo = opsOrderMapper.selectMaxOrderNoByPrefix(prefix);
         int seq = 1;
         if (StringUtils.isNotEmpty(maxOrderNo))
         {
             try
             {
-                // 提取序号部分并加1
                 String seqStr = maxOrderNo.substring(prefix.length());
                 seq = Integer.parseInt(seqStr) + 1;
             }
@@ -57,30 +61,31 @@ public class OpsOrderServiceImpl implements IOpsOrderService
                 seq = 1;
             }
         }
-        // 格式化为4位序号
         return prefix + String.format("%04d", seq);
     }
 
     @Override
+    @Transactional
     public int insertOpsOrder(OpsOrder order)
     {
-        // 如果订单号为空，自动生成
+        // 自动生成订单号
         if (StringUtils.isEmpty(order.getOrderNo()))
         {
             order.setOrderNo(generateOrderNo());
         }
-        // 如果下单日期为空，默认为当前日期
+        // 默认下单日期
         if (order.getOrderDate() == null)
         {
             order.setOrderDate(new Date());
         }
-        // 计算总金额（单价 * 数量）
-        if (order.getUnitPrice() != null && order.getQuantity() != null)
-        {
-            BigDecimal amount = order.getUnitPrice().multiply(new BigDecimal(order.getQuantity()));
-            order.setAmount(amount);
-        }
-        return opsOrderMapper.insertOpsOrder(order);
+        // 计算总金额并处理明细
+        calculateOrderAmount(order);
+        // 检查并扣减库存
+        checkAndDeductStock(order.getItems(), null);
+        int rows = opsOrderMapper.insertOpsOrder(order);
+        // 保存明细
+        saveOrderItems(order);
+        return rows;
     }
 
     @Override
@@ -98,22 +103,158 @@ public class OpsOrderServiceImpl implements IOpsOrderService
     @Override
     public OpsOrder selectOpsOrderById(Long orderId)
     {
-        return opsOrderMapper.selectOpsOrderById(orderId);
+        OpsOrder order = opsOrderMapper.selectOpsOrderById(orderId);
+        if (order != null)
+        {
+            List<OpsOrderItem> items = opsOrderItemMapper.selectItemsByOrderId(orderId);
+            order.setItems(items);
+        }
+        return order;
     }
 
     @Override
+    @Transactional
     public int updateOpsOrder(OpsOrder order)
     {
-        // 计算总金额（单价 * 数量）
-        if (order.getUnitPrice() != null && order.getQuantity() != null)
-        {
-            BigDecimal amount = order.getUnitPrice().multiply(new BigDecimal(order.getQuantity()));
-            order.setAmount(amount);
-        }
+        // 计算总金额并处理明细
+        calculateOrderAmount(order);
+        // 获取旧明细用于库存回滚
+        List<OpsOrderItem> oldItems = opsOrderItemMapper.selectItemsByOrderId(order.getOrderId());
+        // 先回滚旧库存，再删除旧明细（顺序很重要）
+        checkAndDeductStock(order.getItems(), oldItems);
+        // 删除旧明细
+        opsOrderItemMapper.deleteItemsByOrderId(order.getOrderId());
+        // 保存新明细
+        saveOrderItems(order);
         return opsOrderMapper.updateOpsOrder(order);
     }
 
+    /**
+     * 计算订单金额（各明细小计）
+     * 明细：amount = unitPrice * quantity
+     * 订单：amount = 各明细amount之和
+     * paidAmount：如果前端已传入则保留用户手动输入值，否则根据明细paidQuantity计算
+     */
+    private void calculateOrderAmount(OpsOrder order)
+    {
+        List<OpsOrderItem> items = order.getItems();
+        if (items != null && !items.isEmpty())
+        {
+            BigDecimal total = BigDecimal.ZERO;
+            BigDecimal totalPaid = BigDecimal.ZERO;
+            for (OpsOrderItem item : items)
+            {
+                // 计算每行小计
+                if (item.getUnitPrice() != null && item.getQuantity() != null)
+                {
+                    BigDecimal itemAmount = item.getUnitPrice().multiply(new BigDecimal(item.getQuantity()));
+                    item.setAmount(itemAmount);
+                    total = total.add(itemAmount);
+
+                    // 计算明细已付金额：已付数量 * 单价
+                    int paidQty = (item.getPaidQuantity() != null) ? item.getPaidQuantity() : 0;
+                    if (paidQty > item.getQuantity())
+                    {
+                        paidQty = item.getQuantity();
+                        item.setPaidQuantity(paidQty);
+                    }
+                    BigDecimal itemPaid = item.getUnitPrice().multiply(new BigDecimal(paidQty));
+                    item.setPaidAmount(itemPaid);
+                    totalPaid = totalPaid.add(itemPaid);
+                }
+            }
+            order.setAmount(total);
+            // 保留前端传入的 paidAmount（用户手动输入），仅在未传入时才按明细计算
+            if (order.getPaidAmount() == null)
+            {
+                order.setPaidAmount(totalPaid);
+            }
+        }
+    }
+
+    /**
+     * 检查并扣减库存
+     * @param newItems 新订单明细
+     * @param oldItems 旧订单明细（修改时用，用于回滚库存）
+     */
+    private void checkAndDeductStock(List<OpsOrderItem> newItems, List<OpsOrderItem> oldItems)
+    {
+        if (newItems == null || newItems.isEmpty())
+        {
+            return;
+        }
+        
+        // 先回滚旧库存（如果是修改操作）
+        if (oldItems != null && !oldItems.isEmpty())
+        {
+            for (OpsOrderItem oldItem : oldItems)
+            {
+                if (oldItem.getProductId() != null && oldItem.getQuantity() != null)
+                {
+                    OpsProduct product = opsProductMapper.selectOpsProductById(oldItem.getProductId());
+                    if (product != null && product.getStock() != null)
+                    {
+                        // 回滚库存：旧数量加回去
+                        product.setStock(product.getStock() + oldItem.getQuantity());
+                        opsProductMapper.updateOpsProduct(product);
+                    }
+                }
+            }
+        }
+        
+        // 检查新库存并扣减
+        for (OpsOrderItem newItem : newItems)
+        {
+            if (newItem.getProductId() != null && newItem.getQuantity() != null)
+            {
+                OpsProduct product = opsProductMapper.selectOpsProductById(newItem.getProductId());
+                if (product == null)
+                {
+                    throw new ServiceException("商品不存在，ID：" + newItem.getProductId());
+                }
+                if (product.getStock() == null)
+                {
+                    throw new ServiceException("商品库存信息异常：" + product.getProductName());
+                }
+                if (newItem.getQuantity() > product.getStock())
+                {
+                    throw new ServiceException("商品【" + product.getProductName() + "】库存不足，当前库存：" 
+                            + product.getStock() + "，需要数量：" + newItem.getQuantity());
+                }
+                // 扣减库存
+                product.setStock(product.getStock() - newItem.getQuantity());
+                opsProductMapper.updateOpsProduct(product);
+            }
+        }
+    }
+
+    /**
+     * 保存订单明细
+     */
+    private void saveOrderItems(OpsOrder order)
+    {
+        List<OpsOrderItem> items = order.getItems();
+        if (items != null && !items.isEmpty())
+        {
+            for (OpsOrderItem item : items)
+            {
+                item.setOrderId(order.getOrderId());
+                // 补充商品名称
+                if (StringUtils.isEmpty(item.getProductName()) && item.getProductId() != null)
+                {
+                    OpsProduct p = opsProductMapper.selectOpsProductById(item.getProductId());
+                    if (p != null)
+                    {
+                        item.setProductName(p.getProductName());
+                    }
+                }
+            }
+            opsOrderItemMapper.batchInsertOpsOrderItem(items);
+        }
+    }
+
     @Override
+    @Transactional
     public String importOrder(List<OpsOrder> orderList, boolean updateSupport)
     {
         if (StringUtils.isNull(orderList) || orderList.isEmpty())
@@ -133,15 +274,6 @@ public class OpsOrderServiceImpl implements IOpsOrderService
                     throw new IllegalArgumentException("订单号不能为空");
                 }
                 order.setOrderNo(order.getOrderNo().trim());
-                if (StringUtils.isEmpty(order.getProductName()))
-                {
-                    throw new IllegalArgumentException("商品名称不能为空");
-                }
-                OpsProduct p = opsProductMapper.selectOpsProductByProductName(order.getProductName().trim());
-                if (p == null)
-                {
-                    throw new IllegalArgumentException("未找到商品：" + order.getProductName());
-                }
                 if (StringUtils.isEmpty(order.getBuyerName()))
                 {
                     throw new IllegalArgumentException("购买人不能为空");
@@ -159,11 +291,30 @@ public class OpsOrderServiceImpl implements IOpsOrderService
                 {
                     throw new IllegalArgumentException("订单状态须为待支付、已支付、已取消（或 0/1/2）");
                 }
-                order.setProductId(p.getProductId());
                 OpsOrder exist = opsOrderMapper.checkOrderNoUnique(order.getOrderNo());
                 if (StringUtils.isNull(exist))
                 {
+                    if (order.getOrderDate() == null)
+                    {
+                        order.setOrderDate(new Date());
+                    }
                     opsOrderMapper.insertOpsOrder(order);
+                    // 导入时如有商品名称，自动创建一条明细
+                    if (StringUtils.isNotEmpty(order.getProductName()))
+                    {
+                        OpsProduct p = opsProductMapper.selectOpsProductByProductName(order.getProductName().trim());
+                        if (p != null)
+                        {
+                            OpsOrderItem item = new OpsOrderItem();
+                            item.setOrderId(order.getOrderId());
+                            item.setProductId(p.getProductId());
+                            item.setProductName(p.getProductName());
+                            item.setUnitPrice(order.getAmount());
+                            item.setQuantity(1);
+                            item.setAmount(order.getAmount());
+                            opsOrderItemMapper.insertOpsOrderItem(item);
+                        }
+                    }
                     successNum++;
                     successMsg.append("<br/>").append(successNum).append("、订单 ").append(order.getOrderNo()).append(" 导入成功");
                 }

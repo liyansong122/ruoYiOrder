@@ -2,6 +2,7 @@
 <html lang="zh" xmlns:th="http://www.thymeleaf.org" xmlns:shiro="http://www.polix.at/thymeleaf/shiro">
 <head>
 	<th:block th:include="include :: header('订单查询')" />
+	<th:block th:include="include :: datetimepicker-css" />
 </head>
 <body class="gray-bg">
 	<div class="container-div">
@@ -27,6 +28,12 @@
 									<option value="2">已取消</option>
 								</select>
 							</li>
+							<li class="select-time">
+								<label>下单日期： </label>
+								<input type="text" name="orderDateBegin" id="orderDateBegin" placeholder="开始日期" class="time-input"/>
+								<span>-</span>
+								<input type="text" name="orderDateEnd" id="orderDateEnd" placeholder="结束日期" class="time-input"/>
+							</li>
 							<li>
 								<a class="btn btn-primary btn-rounded btn-sm" onclick="$.table.search()"><i class="fa fa-search"></i>&nbsp;搜索</a>
 								<a class="btn btn-warning btn-rounded btn-sm" onclick="$.form.reset()"><i class="fa fa-refresh"></i>&nbsp;重置</a>
@@ -37,12 +44,12 @@
 			</div>
 
 			<div class="btn-group-sm" id="toolbar" role="group">
-				<a class="btn btn-success" onclick="$.operate.add()" shiro:hasPermission="operation:order:add">
+				<a class="btn btn-success" onclick="addOrder()" shiro:hasPermission="operation:order:add">
 					<i class="fa fa-plus"></i> 录入订单
 				</a>
-				<a class="btn btn-info" onclick="$.table.importExcel()" shiro:hasPermission="operation:order:import">
+				<!-- <a class="btn btn-info" onclick="$.table.importExcel()" shiro:hasPermission="operation:order:import">
 					<i class="fa fa-upload"></i> 导入
-				</a>
+				</a> -->
 				<a class="btn btn-warning" onclick="$.table.exportExcel()" shiro:hasPermission="operation:order:export">
 					<i class="fa fa-download"></i> 导出
 				</a>
@@ -54,6 +61,7 @@
 		</div>
 	</div>
 	<th:block th:include="include :: footer" />
+	<th:block th:include="include :: datetimepicker-js" />
 	<script th:inline="javascript">
 		var prefix = ctx + "operation/order";
 		var isAdmin = [[${isAdmin}]];
@@ -66,6 +74,14 @@
 		}
 
 		$(function() {
+			// 初始化日期选择器
+			$("#orderDateBegin, #orderDateEnd").datetimepicker({
+				format: 'yyyy-mm-dd',
+				autoclose: true,
+				todayHighlight: true,
+				minView: 2
+			});
+
 			var options = {
 				url: prefix + "/list",
 				createUrl: prefix + "/add",
@@ -87,7 +103,16 @@
 				},
 				{
 					field: 'productName',
-					title: '商品名称'
+					title: '商品',
+					formatter: function(value, row, index) {
+						if (!value) return '-';
+						// 多个商品用逗号分隔，超过3个截断显示
+						var names = value.split(',');
+						if (names.length > 3) {
+							return names.slice(0, 3).join(',') + '...等' + names.length + '个';
+						}
+						return value;
+					}
 				},
 				{
 					field: 'buyerName',
@@ -95,7 +120,29 @@
 				},
 				{
 					field: 'amount',
-					title: '金额',
+					title: '总金额',
+					sortable: true
+				},
+				{
+					field: 'paidAmount',
+					title: '已付金额',
+					sortable: true,
+					formatter: function(value, row, index) {
+						return value || '0.00';
+					}
+				},
+				{
+					title: '待付金额',
+					sortable: false,
+					formatter: function(value, row, index) {
+						var total = parseFloat(row.amount) || 0;
+						var paid = parseFloat(row.paidAmount) || 0;
+						return (total - paid).toFixed(2);
+					}
+				},
+				{
+					field: 'orderDate',
+					title: '下单日期',
 					sortable: true
 				},
 				{
@@ -108,7 +155,7 @@
 				},
 				{
 					field: 'createTime',
-					title: '下单时间',
+					title: '创建时间',
 					sortable: true
 				},
 				{
@@ -120,9 +167,9 @@
 					align: 'center',
 					formatter: function(value, row, index) {
 						var actions = [];
-						// 仅超级管理员显示编辑按钮
+						actions.push('<a class="btn btn-info btn-xs" href="javascript:void(0)" onclick="viewOrder(\'' + row.orderId + '\')"><i class="fa fa-search"></i>详情</a> ');
 						if (isAdmin) {
-							actions.push('<a class="btn btn-success btn-xs" href="javascript:void(0)" onclick="$.operate.edit(\'' + row.orderId + '\')"><i class="fa fa-edit"></i>编辑</a> ');
+							actions.push('<a class="btn btn-success btn-xs" href="javascript:void(0)" onclick="editOrder(\'' + row.orderId + '\')"><i class="fa fa-edit"></i>编辑</a> ');
 						}
 						return actions.join('');
 					}
@@ -130,6 +177,46 @@
 			};
 			$.table.init(options);
 		});
+		
+		// 自定义详情函数，只读弹窗
+		function viewOrder(id) {
+			var url = table.options.updateUrl.replace("{id}", id);
+			$.modal.openOptions({
+				title: "查看" + table.options.modalName,
+				url: url,
+				width: "1200",
+				btn: ['关闭']
+			});
+		}
+		
+		// 自定义编辑函数，支持加宽弹窗
+		function editOrder(id) {
+			var url = table.options.updateUrl.replace("{id}", id);
+			$.modal.openOptions({
+				title: "修改" + table.options.modalName,
+				url: url,
+				width: "1200",
+				btn: ['确定', '关闭'],
+				callBack: function(index, layero) {
+					var iframeWin = layero.find('iframe')[0];
+					iframeWin.contentWindow.submitHandler(index, layero);
+				}
+			});
+		}
+		
+		// 自定义录入函数，支持加宽弹窗
+		function addOrder() {
+			$.modal.openOptions({
+				title: "录入" + table.options.modalName,
+				url: table.options.createUrl,
+				width: "1200",
+				btn: ['确定', '关闭'],
+				callBack: function(index, layero) {
+					var iframeWin = layero.find('iframe')[0];
+					iframeWin.contentWindow.submitHandler(index, layero);
+				}
+			});
+		}
 	</script>
 </body>
 <!-- 导入区域 -->

@@ -1,5 +1,6 @@
 package com.ruoyi.web.controller.operation;
 
+import java.math.BigDecimal;
 import java.util.List;
 import org.apache.shiro.authz.annotation.RequiresPermissions;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,6 +9,7 @@ import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.multipart.MultipartFile;
@@ -64,6 +66,13 @@ public class OperationOrderController extends BaseController
     public AjaxResult export(OpsOrder order)
     {
         List<OpsOrder> list = opsOrderService.selectOpsOrderList(order);
+        // 计算待付金额
+        for (OpsOrder o : list)
+        {
+            BigDecimal total = o.getAmount() != null ? o.getAmount() : BigDecimal.ZERO;
+            BigDecimal paid = o.getPaidAmount() != null ? o.getPaidAmount() : BigDecimal.ZERO;
+            o.setUnpaidAmount(total.subtract(paid));
+        }
         ExcelUtil<OpsOrder> util = new ExcelUtil<>(OpsOrder.class);
         return util.exportExcel(list, "订单数据");
     }
@@ -89,29 +98,50 @@ public class OperationOrderController extends BaseController
         return util.importTemplateExcel("订单数据");
     }
 
-    @RequiresPermissions("operation:order:add")
-    @GetMapping("/add")
-    public String add(ModelMap mmap)
+    /**
+     * 商品搜索API（供Select2使用）- 返回库存信息
+     */
+    @PostMapping("/searchProduct")
+    @ResponseBody
+    public AjaxResult searchProduct(String productName)
     {
         OpsProduct q = new OpsProduct();
         q.setStatus("0");
-        mmap.put("products", opsProductService.selectOpsProductList(q));
+        if (StringUtils.isNotEmpty(productName))
+        {
+            q.setProductName(productName);
+        }
+        List<OpsProduct> list = opsProductService.selectOpsProductList(q);
+        // 转换为包含库存信息的简单对象
+        List<java.util.Map<String, Object>> result = new java.util.ArrayList<>();
+        for (OpsProduct p : list)
+        {
+            java.util.Map<String, Object> map = new java.util.HashMap<>();
+            map.put("productId", p.getProductId());
+            map.put("productName", p.getProductName());
+            map.put("productCode", p.getProductCode());
+            map.put("stock", p.getStock());
+            result.add(map);
+        }
+        return AjaxResult.success(result);
+    }
+
+    @RequiresPermissions("operation:order:add")
+    @GetMapping("/add")
+    public String add()
+    {
         return prefix + "/add";
     }
 
     @RequiresPermissions("operation:order:add")
     @Log(title = "订单录入", businessType = BusinessType.INSERT)
-    @PostMapping("/add")
+    @PostMapping(value = "/add", produces = "application/json")
     @ResponseBody
-    public AjaxResult addSave(OpsOrder order)
+    public AjaxResult addSave(@RequestBody OpsOrder order)
     {
-        if (order.getProductId() == null)
+        if (order.getItems() == null || order.getItems().isEmpty())
         {
-            return error("请选择商品");
-        }
-        if (order.getAmount() == null)
-        {
-            return error("订单金额不能为空");
+            return error("请至少添加一个商品");
         }
         if (StringUtils.isEmpty(order.getBuyerName()))
         {
@@ -141,17 +171,12 @@ public class OperationOrderController extends BaseController
     @GetMapping("/edit/{orderId}")
     public String edit(@PathVariable("orderId") Long orderId, ModelMap mmap)
     {
-        // 仅超级管理员可编辑
         if (!ShiroUtils.isAdmin())
         {
             return "redirect:/operation/order";
         }
         OpsOrder order = opsOrderService.selectOpsOrderById(orderId);
         mmap.put("order", order);
-        // 加载商品列表
-        OpsProduct q = new OpsProduct();
-        q.setStatus("0");
-        mmap.put("products", opsProductService.selectOpsProductList(q));
         return prefix + "/edit";
     }
 
@@ -159,11 +184,10 @@ public class OperationOrderController extends BaseController
      * 编辑订单保存 - 仅超级管理员可操作
      */
     @Log(title = "订单编辑", businessType = BusinessType.UPDATE)
-    @PostMapping("/edit")
+    @PostMapping(value = "/edit", produces = "application/json")
     @ResponseBody
-    public AjaxResult editSave(OpsOrder order)
+    public AjaxResult editSave(@RequestBody OpsOrder order)
     {
-        // 仅超级管理员可编辑
         if (!ShiroUtils.isAdmin())
         {
             return error("无权限操作");
@@ -172,13 +196,9 @@ public class OperationOrderController extends BaseController
         {
             return error("订单ID不能为空");
         }
-        if (order.getProductId() == null)
+        if (order.getItems() == null || order.getItems().isEmpty())
         {
-            return error("请选择商品");
-        }
-        if (order.getAmount() == null)
-        {
-            return error("订单金额不能为空");
+            return error("请至少添加一个商品");
         }
         if (StringUtils.isEmpty(order.getBuyerName()))
         {

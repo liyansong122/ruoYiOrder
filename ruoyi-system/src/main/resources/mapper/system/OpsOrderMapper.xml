@@ -7,12 +7,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 	<resultMap type="OpsOrder" id="OpsOrderResult">
 		<id     property="orderId"       column="order_id"       />
 		<result property="orderNo"       column="order_no"       />
-		<result property="productId"     column="product_id"     />
 		<result property="productName"   column="product_name"   />
 		<result property="buyerName"     column="buyer_name"     />
 		<result property="amount"        column="amount"         />
-		<result property="unitPrice"     column="unit_price"     />
-		<result property="quantity"      column="quantity"       />
+		<result property="paidAmount"    column="paid_amount"    />
 		<result property="region"        column="region"         />
 		<result property="phone"         column="phone"          />
 		<result property="logistics"     column="logistics"      />
@@ -24,9 +22,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 	</resultMap>
 
 	<select id="selectOpsOrderList" parameterType="OpsOrder" resultMap="OpsOrderResult">
-		select o.order_id, o.order_no, o.product_id, p.product_name, o.buyer_name, o.amount, o.order_status, o.create_time, o.remark
+		select o.order_id, o.order_no, o.buyer_name, o.amount, o.paid_amount, o.region, o.phone,
+		       o.logistics, o.factory, o.order_date, o.order_status, o.create_time, o.remark,
+		       (select group_concat(p.product_name separator ',') from ops_order_item oi
+		        left join ops_product p on oi.product_id = p.product_id
+		        where oi.order_id = o.order_id) as product_name
 		from ops_order o
-		left join ops_product p on o.product_id = p.product_id
 		<where>
 			<if test="orderNo != null and orderNo != ''">
 				AND o.order_no like concat('%', #{orderNo}, '%')
@@ -38,14 +39,20 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 				AND o.order_status = #{orderStatus}
 			</if>
 			<if test="productName != null and productName != ''">
-				AND p.product_name like concat('%', #{productName}, '%')
+				AND exists (select 1 from ops_order_item oi2 left join ops_product p2 on oi2.product_id = p2.product_id where oi2.order_id = o.order_id and p2.product_name like concat('%', #{productName}, '%'))
+			</if>
+			<if test="orderDateBegin != null and orderDateBegin != ''">
+				AND o.order_date &gt;= #{orderDateBegin}
+			</if>
+			<if test="orderDateEnd != null and orderDateEnd != ''">
+				AND o.order_date &lt;= #{orderDateEnd}
 			</if>
 		</where>
 		order by o.create_time desc
 	</select>
 
 	<select id="checkOrderNoUnique" parameterType="String" resultMap="OpsOrderResult">
-		select order_id, order_no, product_id, buyer_name, amount, order_status, create_time, remark
+		select order_id, order_no, buyer_name, amount, order_status, create_time, remark
 		from ops_order
 		where order_no = #{orderNo} limit 1
 	</select>
@@ -59,11 +66,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 	<insert id="insertOpsOrder" parameterType="OpsOrder" useGeneratedKeys="true" keyProperty="orderId">
 		insert into ops_order(
 			<if test="orderNo != null and orderNo != ''">order_no,</if>
-			<if test="productId != null">product_id,</if>
 			<if test="buyerName != null and buyerName != ''">buyer_name,</if>
 			<if test="amount != null">amount,</if>
-			<if test="unitPrice != null">unit_price,</if>
-			<if test="quantity != null">quantity,</if>
+			<if test="paidAmount != null">paid_amount,</if>
 			<if test="region != null and region != ''">region,</if>
 			<if test="phone != null and phone != ''">phone,</if>
 			<if test="logistics != null and logistics != ''">logistics,</if>
@@ -74,11 +79,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 			create_time
 		)values(
 			<if test="orderNo != null and orderNo != ''">#{orderNo},</if>
-			<if test="productId != null">#{productId},</if>
 			<if test="buyerName != null and buyerName != ''">#{buyerName},</if>
 			<if test="amount != null">#{amount},</if>
-			<if test="unitPrice != null">#{unitPrice},</if>
-			<if test="quantity != null">#{quantity},</if>
+			<if test="paidAmount != null">#{paidAmount},</if>
 			<if test="region != null and region != ''">#{region},</if>
 			<if test="phone != null and phone != ''">#{phone},</if>
 			<if test="logistics != null and logistics != ''">#{logistics},</if>
@@ -95,11 +98,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
 	<update id="updateOpsOrder" parameterType="OpsOrder">
 		update ops_order
-		set product_id = #{productId},
-			buyer_name = #{buyerName},
+		set buyer_name = #{buyerName},
 			amount = #{amount},
-			unit_price = #{unitPrice},
-			quantity = #{quantity},
+			paid_amount = #{paidAmount},
 			region = #{region},
 			phone = #{phone},
 			logistics = #{logistics},
@@ -112,11 +113,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 	</update>
 
 	<select id="selectOpsOrderById" parameterType="Long" resultMap="OpsOrderResult">
-		select o.order_id, o.order_no, o.product_id, p.product_name, o.buyer_name, o.amount, 
-		       o.unit_price, o.quantity, o.region, o.phone, o.logistics, o.factory, 
-		       o.order_date, o.order_status, o.create_time, o.remark
+		select o.order_id, o.order_no, o.buyer_name, o.amount, o.paid_amount, o.region, o.phone,
+		       o.logistics, o.factory, o.order_date, o.order_status, o.create_time, o.remark
 		from ops_order o
-		left join ops_product p on o.product_id = p.product_id
 		where o.order_id = #{orderId}
 	</select>
+
 </mapper>

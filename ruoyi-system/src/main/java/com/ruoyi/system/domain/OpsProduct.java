@@ -1,12 +1,10 @@
 package com.ruoyi.system.domain;
 
-import java.math.BigDecimal;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 import com.ruoyi.common.annotation.Excel;
-import com.ruoyi.common.annotation.Excel.ColumnType;
 import com.ruoyi.common.core.domain.BaseEntity;
 
 /**
@@ -24,10 +22,7 @@ public class OpsProduct extends BaseEntity
     @Excel(name = "商品名称")
     private String productName;
 
-    @Excel(name = "单价", cellType = ColumnType.NUMERIC)
-    private BigDecimal price;
-
-    @Excel(name = "库存", cellType = ColumnType.NUMERIC)
+    @Excel(name = "库存", cellType = Excel.ColumnType.NUMERIC)
     private Integer stock;
 
     @Excel(name = "状态", readConverterExp = "0=正常,1=停用")
@@ -65,17 +60,6 @@ public class OpsProduct extends BaseEntity
         this.productName = productName;
     }
 
-    @NotNull(message = "单价不能为空")
-    public BigDecimal getPrice()
-    {
-        return price;
-    }
-
-    public void setPrice(BigDecimal price)
-    {
-        this.price = price;
-    }
-
     @NotNull(message = "库存不能为空")
     public Integer getStock()
     {
@@ -104,7 +88,6 @@ public class OpsProduct extends BaseEntity
             .append("productId", getProductId())
             .append("productCode", getProductCode())
             .append("productName", getProductName())
-            .append("price", getPrice())
             .append("stock", getStock())
             .append("status", getStatus())
             .append("createBy", getCreateBy())

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.OpsOrderItemMapper">
+
+	<resultMap type="OpsOrderItem" id="OpsOrderItemResult">
+		<id     property="itemId"       column="item_id"       />
+		<result property="orderId"      column="order_id"      />
+		<result property="productId"    column="product_id"    />
+		<result property="productName"  column="product_name"  />
+		<result property="productCode"  column="product_code"  />
+		<result property="unitPrice"    column="unit_price"    />
+		<result property="quantity"     column="quantity"      />
+		<result property="paidQuantity" column="paid_quantity" />
+		<result property="paidAmount"   column="paid_amount"   />
+		<result property="amount"       column="amount"        />
+		<result property="remark"       column="remark"        />
+	</resultMap>
+
+	<select id="selectItemsByOrderId" parameterType="Long" resultMap="OpsOrderItemResult">
+		select oi.item_id, oi.order_id, oi.product_id, oi.product_name, p.product_code,
+		       oi.unit_price, oi.quantity, oi.paid_quantity, oi.paid_amount, oi.amount, oi.remark
+		from ops_order_item oi
+		left join ops_product p on oi.product_id = p.product_id
+		where oi.order_id = #{orderId}
+		order by oi.item_id
+	</select>
+
+	<insert id="insertOpsOrderItem" parameterType="OpsOrderItem" useGeneratedKeys="true" keyProperty="itemId">
+		insert into ops_order_item(order_id, product_id, product_name, unit_price, quantity, paid_quantity, paid_amount, amount, remark)
+		values(#{orderId}, #{productId}, #{productName}, #{unitPrice}, #{quantity}, COALESCE(#{paidQuantity}, 0), COALESCE(#{paidAmount}, 0), #{amount}, #{remark})
+	</insert>
+
+	<insert id="batchInsertOpsOrderItem" parameterType="java.util.List">
+		insert into ops_order_item(order_id, product_id, product_name, unit_price, quantity, paid_quantity, paid_amount, amount, remark)
+		values
+		<foreach collection="list" item="item" separator=",">
+			(#{item.orderId}, #{item.productId}, #{item.productName}, #{item.unitPrice}, #{item.quantity}, COALESCE(#{item.paidQuantity}, 0), COALESCE(#{item.paidAmount}, 0), #{item.amount}, #{item.remark})
+		</foreach>
+	</insert>
+
+	<delete id="deleteItemsByOrderId" parameterType="Long">
+		delete from ops_order_item where order_id = #{orderId}
+	</delete>
+
+	<delete id="deleteItemsByOrderIds" parameterType="Long">
+		delete from ops_order_item where order_id in
+		<foreach collection="array" item="orderId" open="(" separator="," close=")">
+			#{orderId}
+		</foreach>
+	</delete>
+
+</mapper>
